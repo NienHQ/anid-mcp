@@ -1,0 +1,12 @@
+{
+  "name": "anid",
+  "description": "Share a local file and get a public link via the ANID file-farm MCP server.",
+  "version": "0.1.0",
+  "author": {
+    "name": "NienHQ"
+  },
+  "homepage": "https://github.com/NienHQ/anid-mcp",
+  "repository": "https://github.com/NienHQ/anid-mcp",
+  "license": "MIT",
+  "keywords": ["mcp", "anid", "x402", "file-sharing", "agent"]
+}

@@ -19,7 +19,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "whoami": "node bin/anid.mjs whoami"
+    "whoami": "node bin/anid.mjs whoami",
+    "build:plugin": "esbuild bin/anid.mjs --bundle --platform=node --format=esm --outfile=plugins/anid/cli/anid.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -29,5 +30,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/NienHQ/anid-mcp.git"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
   }
 }

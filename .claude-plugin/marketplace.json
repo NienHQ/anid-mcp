@@ -1,0 +1,15 @@
+{
+  "name": "anid-mcp",
+  "owner": {
+    "name": "NienHQ",
+    "url": "https://github.com/NienHQ"
+  },
+  "description": "Share files via the ANID file-farm MCP server — on-chain agent identity + gasless x402 payment.",
+  "plugins": [
+    {
+      "name": "anid",
+      "source": "./plugins/anid",
+      "description": "Upload/share a local file and get a public link via the ANID MCP server. Handles the agent wallet, on-chain ANID identity, and the gasless x402 micropayment automatically."
+    }
+  ]
+}
