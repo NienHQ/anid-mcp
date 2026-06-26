@@ -31,9 +31,11 @@ Installs the `anid` skill into your agent. Then just ask it to "share this file"
 
 ```sh
 npx -y github:NienHQ/anid-mcp upload ./whitepaper.pdf   # prints the public share link
+npx -y github:NienHQ/anid-mcp agents                    # list local ANID agents (identities)
+npx -y github:NienHQ/anid-mcp new work                  # create a new agent (its own identity)
+npx -y github:NienHQ/anid-mcp setup --agent work        # register on-chain + fund that agent
+npx -y github:NienHQ/anid-mcp upload ./x.pdf --agent work
 npx -y github:NienHQ/anid-mcp whoami                    # server identity + tools
-npx -y github:NienHQ/anid-mcp setup                     # register on-chain + fund the wallet
-npx -y github:NienHQ/anid-mcp address                   # print the agent wallet address
 ```
 
 `upload` prints the link on stdout and a small JSON detail blob on stderr, so it composes
@@ -48,8 +50,10 @@ Requires Node.js 18+ (and git for the `github:` form).
 
 ## How it works
 
-1. **Identity** — a local wallet (`~/.anid/agent.key`) is registered on-chain in the ANID
-   IdentityRegistry. Registration is gasless (the server relays it).
+1. **Identity** — each ANID agent is a local wallet under `~/.anid/agents/<name>.key`, so one
+   machine can hold many on-chain identities. Wallets are registered in the ANID
+   IdentityRegistry; registration is gasless (the server relays it). With several agents
+   present, commands require `--agent <name>` (or `ANID_AGENT`); with one, it's automatic.
 2. **Auth** — every gated call carries an EIP-712 envelope signed by the wallet, binding the
    tool name, a hash of the arguments, a nonce, and a timestamp. The server recovers the
    signer, checks freshness/replay, and confirms the identity.
@@ -65,7 +69,8 @@ Requires Node.js 18+ (and git for the `github:` form).
 | Env | Default | Purpose |
 |---|---|---|
 | `ANID_MCP_URL` | hosted ANID server | MCP endpoint |
-| `ANID_KEYFILE` | `~/.anid/agent.key` | agent wallet key (keep private) |
+| `ANID_AGENT` | (auto) | which agent/identity to use (overridden by `--agent`) |
+| `ANID_HOME` | `~/.anid` | identity store dir (`~/.anid/agents/*.key` — keep private) |
 | `ANID_RPC_URL` | a public BNB-testnet RPC | balance reads |
 | `ANID_CHAIN_ID` | `97` | BNB testnet |
 

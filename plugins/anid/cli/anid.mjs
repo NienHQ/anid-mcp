@@ -24308,7 +24308,7 @@ var bscTestnet = /* @__PURE__ */ defineChain({
 
 // lib/anid-client.mjs
 import { randomBytes as randomBytes2 } from "node:crypto";
-import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { homedir } from "node:os";
 
@@ -34527,11 +34527,15 @@ var StreamableHTTPClientTransport = class {
 };
 
 // lib/anid-client.mjs
+var ANID_HOME = process.env.ANID_HOME ?? `${homedir()}/.anid`;
 var config2 = {
   MCP_URL: process.env.ANID_MCP_URL ?? "https://mcp.nien.ai/mcp",
   RPC_URL: process.env.ANID_RPC_URL ?? "https://bsc-testnet.publicnode.com",
   CHAIN_ID: Number(process.env.ANID_CHAIN_ID ?? 97),
-  KEYFILE: process.env.ANID_KEYFILE ?? `${homedir()}/.anid/agent.key`
+  HOME: ANID_HOME,
+  AGENTS_DIR: `${ANID_HOME}/agents`,
+  // Legacy single-key location (pre-multi-agent installs); treated as agent "default".
+  KEYFILE: process.env.ANID_KEYFILE ?? `${ANID_HOME}/agent.key`
 };
 var EIP712_DOMAIN = { name: "anid-mcp", version: "1", chainId: config2.CHAIN_ID };
 var REQUEST_TYPES = {
@@ -34551,16 +34555,59 @@ function sortKeys(v) {
   return v;
 }
 var argsHash = (args) => keccak256(toHex(JSON.stringify(sortKeys(args))));
-function loadAccount() {
-  let pk;
-  if (existsSync(config2.KEYFILE)) {
-    pk = readFileSync(config2.KEYFILE, "utf8").trim();
-  } else {
-    pk = "0x" + Buffer.from(randomBytes2(32)).toString("hex");
-    mkdirSync(dirname(config2.KEYFILE), { recursive: true });
-    writeFileSync(config2.KEYFILE, pk, { mode: 384 });
-  }
+var toAnid = (address) => `anid:bnb:${address.toLowerCase()}`;
+function accountFromFile(keyfile) {
+  return privateKeyToAccount(readFileSync(keyfile, "utf8").trim());
+}
+function writeKey(keyfile) {
+  mkdirSync(dirname(keyfile), { recursive: true });
+  const pk = "0x" + Buffer.from(randomBytes2(32)).toString("hex");
+  writeFileSync(keyfile, pk, { mode: 384 });
   return privateKeyToAccount(pk);
+}
+function listAgents() {
+  const agents = [];
+  if (existsSync(config2.AGENTS_DIR)) {
+    for (const f of readdirSync(config2.AGENTS_DIR).sort()) {
+      if (!f.endsWith(".key")) continue;
+      const keyfile = `${config2.AGENTS_DIR}/${f}`;
+      const { address } = accountFromFile(keyfile);
+      agents.push({ name: f.slice(0, -4), address, anid: toAnid(address), keyfile });
+    }
+  }
+  if (existsSync(config2.KEYFILE) && !agents.some((a) => a.name === "default")) {
+    const { address } = accountFromFile(config2.KEYFILE);
+    agents.push({ name: "default", address, anid: toAnid(address), keyfile: config2.KEYFILE, legacy: true });
+  }
+  return agents;
+}
+function createAgent(name) {
+  if (!/^[A-Za-z0-9._-]+$/.test(name)) throw new Error(`invalid agent name '${name}' (use letters, digits, . _ -)`);
+  const keyfile = `${config2.AGENTS_DIR}/${name}.key`;
+  if (existsSync(keyfile)) throw new Error(`agent '${name}' already exists`);
+  const account = writeKey(keyfile);
+  return { account, name, address: account.address, anid: toAnid(account.address), keyfile };
+}
+function resolveAccount({ agent } = {}) {
+  const sel = agent ?? process.env.ANID_AGENT;
+  if (sel) {
+    const keyfile = `${config2.AGENTS_DIR}/${sel}.key`;
+    if (existsSync(keyfile)) return { account: accountFromFile(keyfile), name: sel };
+    if (sel === "default" && existsSync(config2.KEYFILE)) return { account: accountFromFile(config2.KEYFILE), name: "default" };
+    const created = createAgent(sel);
+    return { account: created.account, name: sel, created: true };
+  }
+  const agents = listAgents();
+  if (agents.length === 1) return { account: accountFromFile(agents[0].keyfile), name: agents[0].name };
+  if (agents.length === 0) {
+    const created = createAgent("default");
+    return { account: created.account, name: "default", created: true };
+  }
+  const e = new Error(
+    "multiple local ANID agents \u2014 choose one with --agent <name>:\n" + agents.map((a) => `  ${a.name}  ${a.anid}`).join("\n")
+  );
+  e.code = "AMBIGUOUS_AGENT";
+  throw e;
 }
 async function connect() {
   const c = new Client({ name: "anid-mcp-skill", version: "0.1.0" });
@@ -34683,56 +34730,99 @@ function usage() {
   console.error(`anid \u2014 share files via the ANID MCP server
 
 Usage:
-  anid address                          print this agent's wallet address
-  anid whoami                           server identity + available tools
-  anid setup [amount]                   register on-chain + fund with test tokens (default 1)
-  anid upload <file> [--type <mime>]    upload a file; prints the public share link
+  anid agents                              list local ANID agents (identities)
+  anid new <name>                          create a new ANID agent (its own wallet/identity)
+  anid setup [amount] [--agent <name>]     register on-chain + fund with test tokens
+  anid upload <file> [--type <mime>] [--agent <name>]   upload a file; prints the public link
+  anid address [--agent <name>]            print an agent's wallet address
+  anid whoami                              server identity + available tools
+
+Agent selection: pass --agent <name> (or set ANID_AGENT). With one local agent it's used
+automatically; with none, a "default" agent is created; with several, you must choose one.
 
 Env:
   ANID_MCP_URL   MCP endpoint   (default ${config2.MCP_URL})
-  ANID_KEYFILE   wallet key     (default ${config2.KEYFILE})
-  ANID_RPC_URL   read RPC       (default ${config2.RPC_URL})`);
+  ANID_AGENT     agent to use   (overridden by --agent)
+  ANID_HOME      identity store (default ${config2.HOME})`);
 }
-var [cmd, ...rest] = process.argv.slice(2);
+var argv = process.argv.slice(2);
+var cmd = argv[0];
+var rest = argv.slice(1);
+var VALUE_FLAGS = /* @__PURE__ */ new Set(["--agent", "--type"]);
+var flag = (name) => {
+  const i = rest.indexOf(name);
+  return i >= 0 ? rest[i + 1] : void 0;
+};
+var positionals = [];
+for (let i = 0; i < rest.length; i++) {
+  if (VALUE_FLAGS.has(rest[i])) {
+    i++;
+    continue;
+  }
+  if (rest[i].startsWith("--")) continue;
+  positionals.push(rest[i]);
+}
+var agentName = flag("--agent");
 async function main() {
-  const account = loadAccount();
-  if (cmd === "address") return void console.log(account.address);
+  if (cmd === "agents") {
+    const list = listAgents();
+    if (!list.length) return void console.log("(no local ANID agents yet \u2014 one is created on first use)");
+    for (const a of list) console.log(`${a.name}	${a.anid}${a.legacy ? "  (legacy)" : ""}`);
+    return;
+  }
+  if (cmd === "new") {
+    const name = positionals[0];
+    if (!name) {
+      console.error("usage: anid new <name>");
+      process.exit(1);
+    }
+    const a = createAgent(name);
+    return void console.log(JSON.stringify({ created: a.name, address: a.address, anid: a.anid }, null, 2));
+  }
   if (cmd === "whoami") {
     const c = await connect();
     console.log(JSON.stringify(await whoami(c), null, 2));
     return void await c.close();
   }
+  if (cmd === "address") {
+    const { account, name } = resolveAccount({ agent: agentName });
+    return void console.log(`${account.address}  (${name})`);
+  }
   if (cmd === "setup") {
+    const { account, name } = resolveAccount({ agent: agentName });
     const c = await connect();
     const reg = await register(c, account);
-    const fund = await airdrop(c, account, Number(rest[0] ?? 1));
+    const fund = await airdrop(c, account, Number(positionals[0] ?? 1));
     console.log(JSON.stringify(
-      { address: account.address, anid: reg.anid, registered: Boolean(reg.registered), already_registered: Boolean(reg.already_registered), balance: fund.balance, symbol: fund.symbol },
+      { agent: name, address: account.address, anid: reg.anid, registered: Boolean(reg.registered), already_registered: Boolean(reg.already_registered), balance: fund.balance },
       null,
       2
     ));
     return void await c.close();
   }
   if (cmd === "upload") {
-    const ti = rest.indexOf("--type");
-    const type = ti >= 0 ? rest[ti + 1] : void 0;
-    const path = rest.find((a, i) => !a.startsWith("--") && (ti < 0 || i !== ti + 1));
+    const path = positionals[0];
     if (!path) {
       usage();
       process.exit(1);
     }
+    const { account, name } = resolveAccount({ agent: agentName });
     const c = await connect();
     await register(c, account);
-    const out = await uploadFile(c, account, { path, filename: basename(path), contentType: type ?? guessType(path) });
+    const out = await uploadFile(c, account, { path, filename: basename(path), contentType: flag("--type") ?? guessType(path) });
     await c.close();
     console.log(out.share_url);
-    console.error(JSON.stringify({ slug: out.slug, size: out.size ?? null, expires_at: out.expires_at ?? null }, null, 2));
+    console.error(JSON.stringify({ agent: name, slug: out.slug, expires_at: out.expires_at ?? null }, null, 2));
     return;
   }
   usage();
   process.exit(cmd ? 1 : 0);
 }
 main().catch((e) => {
+  if (e?.code === "AMBIGUOUS_AGENT") {
+    console.error(e.message);
+    process.exit(2);
+  }
   console.error("error:", e?.message ?? e);
   process.exit(1);
 });
