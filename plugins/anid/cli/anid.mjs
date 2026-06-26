@@ -34528,7 +34528,7 @@ var StreamableHTTPClientTransport = class {
 
 // lib/anid-client.mjs
 var config2 = {
-  MCP_URL: process.env.ANID_MCP_URL ?? "http://5.223.48.16:8080/mcp",
+  MCP_URL: process.env.ANID_MCP_URL ?? "https://mcp.nien.ai/mcp",
   RPC_URL: process.env.ANID_RPC_URL ?? "https://bsc-testnet.publicnode.com",
   CHAIN_ID: Number(process.env.ANID_CHAIN_ID ?? 97),
   KEYFILE: process.env.ANID_KEYFILE ?? `${homedir()}/.anid/agent.key`
