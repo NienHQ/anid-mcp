@@ -9,41 +9,42 @@ One wallet is your ANID identity, your payer, and your file owner. A bundled CLI
 the cryptography (per-request EIP-712 auth + EIP-2612 permit) so an LLM agent — or you —
 can drive it with a single command. The plugin ships a **pre-bundled, zero-install** CLI.
 
-## Install as a Claude Code plugin (recommended)
+## Install
+
+### Option A — `skills` CLI (any agent: Claude Code, Cursor, Cline, …)
+
+```sh
+npx skills add NienHQ/anid-mcp
+```
+
+Installs the `anid` skill into your agent. Then just ask it to "share this file" or
+"upload X and give me a link."
+
+### Option B — Claude Code plugin
 
 ```text
 /plugin marketplace add NienHQ/anid-mcp
 /plugin install anid@anid-mcp
 ```
 
-That's it — no `npm install`. After installing, just ask Claude to "share this file" or
-"upload X and give me a link," and it runs the skill. (Requires Node.js 18+ on your machine.)
-
-## Use it directly (no Claude)
-
-The CLI is a standalone, dependency-free bundle — clone and run:
+### Option C — run the CLI directly (no agent)
 
 ```sh
-git clone https://github.com/NienHQ/anid-mcp.git
-node anid-mcp/plugins/anid/cli/anid.mjs upload ./whitepaper.pdf   # prints the public link
+npx -y github:NienHQ/anid-mcp upload ./whitepaper.pdf   # prints the public share link
+npx -y github:NienHQ/anid-mcp whoami                    # server identity + tools
+npx -y github:NienHQ/anid-mcp setup                     # register on-chain + fund the wallet
+npx -y github:NienHQ/anid-mcp address                   # print the agent wallet address
 ```
 
-Commands:
+`upload` prints the link on stdout and a small JSON detail blob on stderr, so it composes
+in scripts:
 
 ```sh
-node plugins/anid/cli/anid.mjs upload <file> [--type <mime>]   # upload -> public share link
-node plugins/anid/cli/anid.mjs whoami                          # server identity + tools
-node plugins/anid/cli/anid.mjs setup                           # register on-chain + fund wallet
-node plugins/anid/cli/anid.mjs address                         # print the agent wallet address
-```
-
-`upload` prints the share link on stdout and a small JSON detail blob on stderr, so it
-composes in scripts:
-
-```sh
-LINK=$(node plugins/anid/cli/anid.mjs upload ./report.pdf)
+LINK=$(npx -y github:NienHQ/anid-mcp upload ./report.pdf)
 echo "shared at: $LINK"
 ```
+
+Requires Node.js 18+ (and git for the `github:` form).
 
 ## How it works
 
@@ -71,12 +72,13 @@ echo "shared at: $LINK"
 ## Repo layout
 
 ```
-.claude-plugin/marketplace.json     # plugin marketplace catalog
-plugins/anid/                       # the installable plugin
+skills/anid/SKILL.md                # the skill (discovered by the `skills` CLI / any agent)
+.claude-plugin/marketplace.json     # Claude Code plugin marketplace catalog
+plugins/anid/                       # the Claude Code plugin
   ├── .claude-plugin/plugin.json
-  ├── skills/anid/SKILL.md          # the agent skill
-  └── cli/anid.mjs                  # pre-bundled, zero-install CLI
-bin/ , lib/                         # CLI source (rebuild the bundle: npm run build:plugin)
+  ├── skills/anid/SKILL.md          # skill (native plugin copy; runs the bundled CLI)
+  └── cli/anid.mjs                  # pre-bundled, zero-install CLI for the plugin
+bin/ , lib/                         # CLI source — what `npx github:NienHQ/anid-mcp` runs
 ```
 
 ## Notes
