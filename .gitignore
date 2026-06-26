@@ -1,0 +1,7 @@
+node_modules/
+# never commit wallet keys
+*.key
+.anid/
+.env
+.env.*
+.DS_Store

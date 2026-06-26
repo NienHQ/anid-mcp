@@ -1,0 +1,33 @@
+{
+  "name": "@nienhq/anid-mcp",
+  "version": "0.1.0",
+  "description": "Client + agent skill for the ANID file-farm MCP server: wallet, on-chain identity, gasless x402 payment, and file sharing.",
+  "type": "module",
+  "bin": {
+    "anid": "bin/anid.mjs"
+  },
+  "exports": {
+    ".": "./lib/anid-client.mjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "SKILL.md",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "whoami": "node bin/anid.mjs whoami"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "viem": "^2.53.1"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NienHQ/anid-mcp.git"
+  }
+}
